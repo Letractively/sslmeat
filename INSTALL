@@ -1,0 +1,13 @@
+SSLMEAT INSTALL
+
+sslmeat is written in C++ (g++) and encompasses 2 executables:
+1) 'proxy', the http/ssl man-in-the-middle proxy.
+2) 'showp', a tool to read the contents of packets saved by 'proxy'
+
+To compile sslmeat, you'll need the following dev. packages:
+* zlib
+* sqlite3
+* openssl
+
+Compile instructions: just type 'make' ! 
+
