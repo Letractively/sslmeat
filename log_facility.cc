@@ -21,7 +21,7 @@ const char *logid_get()
 
 log_facility logger;
 
-log_facility& log_facility::message(const char *format, ...)
+log_facility& log_facility::message(unsigned level, const char *format, ...)
 { 
     int slen;
     int tlen;
@@ -29,7 +29,7 @@ log_facility& log_facility::message(const char *format, ...)
     const char *logid;
     va_list va;
 
-    if (_show)
+    if (_level<=level)
     {
 	logid = logid_get();
 

@@ -12,14 +12,20 @@ const char *logid_inc();
 
 class log_facility {
 	public:
-		log_facility() : _log(stderr), _show(true) { }
-		log_facility& message(const char *format, ...); 
-		void hide() 			{ _show = false; }
-		void show()			{ _show = true; }
+		enum {
+			ALL,
+			DEBUG,
+			WARNING,
+			ERROR,
+			NONE
+		};
+		log_facility() : _log(stderr), _level(0) { }
+		log_facility& message(unsigned level, const char *format, ...); 
+		void set_verbosity(unsigned level)  { _level = level; }
 		~log_facility() { fclose(_log); }
 	private:
 		FILE *_log;
-		bool _show;
+		unsigned _level;
 };
 
 extern log_facility logger;
