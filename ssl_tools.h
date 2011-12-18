@@ -12,4 +12,5 @@ EVP_PKEY* openssl_load_private_key_from_file(const char* keyfile, const char *pa
 
 DH* openssl_load_diffie_hellman_key_from_file(const char* keyfile);
 
+extern int openssl_save_cert;
 #endif

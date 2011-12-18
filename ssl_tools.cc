@@ -1,26 +1,42 @@
 #include "ssl_tools.h"
 #include "log_facility.h"
 
-//#define DEBUG_SAVE_CERT
+int openssl_save_cert=0;
+#define GOOD_CHARS "abcdefghijklmnopqrstuvwxyABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890-"
 
 void X509_save(X509 *x, bool is_original)
 	// used for debug
 {
-	char fname[20];
+	char fname[128];
+	char sname[128];
+	char *cname;
 	FILE *f;
+	int i;
+
+	X509_NAME_oneline(X509_get_subject_name(x), sname, 128);
+
+	for (i=0;sname[i]!=0 && i<128;i++)
+		if (!strchr(GOOD_CHARS,sname[i])) sname[i]='_';
+	
+	cname = strstr(sname,"CN_");
+
+	if (cname)
+		cname+=3;
+	else
+		cname=sname;
 
 	if (is_original)
-		sprintf(fname,"cert-%04x-org.pem",getpid());
+		sprintf(fname,"cert-%s-org.pem",cname);
 	else
-		sprintf(fname,"cert-%04x-mod.pem",getpid());
+		sprintf(fname,"cert-%s-mod.pem",cname);
 	if ((f=fopen(fname,"wb"))!=NULL)
 	{
-	    logger.message("Saving certificate in %s",fname);
+	    logger.message(logger.DEBUG,"Saving certificate in %s",fname);
 	    PEM_write_X509(f,x);
 	    fclose(f);
 	}
 	else
-	    logger.message("FAILED saving certificate in %s: %s",fname,strerror(errno));
+	    logger.message(logger.WARNING,"FAILED saving certificate in %s: %s",fname,strerror(errno));
 }
 
 X509* openssl_transform_certificate(X509 *src_cert, EVP_PKEY* cakey, EVP_PKEY* pubkey)
@@ -34,9 +50,8 @@ X509* openssl_transform_certificate(X509 *src_cert, EVP_PKEY* cakey, EVP_PKEY* p
   X509_EXTENSION           *ext;
   int                       src_ext_pos;
 
-#ifdef DEBUG_SAVE_CERT
-  X509_save(src_cert,true);
-#endif
+  if (openssl_save_cert)
+  	X509_save(src_cert,true);
 
   dst_cert = X509_new();
 
@@ -93,16 +108,15 @@ X509* openssl_transform_certificate(X509 *src_cert, EVP_PKEY* cakey, EVP_PKEY* p
   digest = EVP_sha1();
   if (!X509_sign(dst_cert,cakey,digest))
   {
-	logger.message("failed to sign with CA key\n");
-        logger.message("openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
+	logger.message(logger.ERROR,"failed to sign with CA key\n");
+        logger.message(logger.WARNING,"openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
         return 0;
   }
   
-  logger.message("created new certificate\n");
+  logger.message(logger.DEBUG,"created new certificate\n");
 
-#ifdef DEBUG_SAVE_CERT
-  X509_save(dst_cert,false);
-#endif
+  if (openssl_save_cert)
+	X509_save(dst_cert,false);
 
   return dst_cert;
 }
@@ -114,7 +128,7 @@ X509* openssl_load_cert_from_file(const char* certfile)
 
   if (SRC==NULL)
   {
-	logger.message("Failed to open certificate file %s",certfile);
+	logger.message(logger.ERROR,"Failed to open certificate file %s",certfile);
 	return NULL;
   }
 
@@ -122,8 +136,8 @@ X509* openssl_load_cert_from_file(const char* certfile)
   fclose(SRC);
   if (res==NULL)
   {
-	logger.message("Failed to read certificate from file %s",certfile);
-	logger.message("openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
+	logger.message(logger.ERROR,"Failed to read certificate from file %s",certfile);
+	logger.message(logger.WARNING,"openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
 	return NULL;
   }
   return res;
@@ -136,15 +150,15 @@ EVP_PKEY* openssl_load_private_key_from_file(const char* keyfile, const char *pa
 
   if ((KF = fopen(keyfile,"rb"))==NULL)
   {
-	logger.message("Failed to open key file %s",keyfile);
+	logger.message(logger.ERROR,"Failed to open key file %s",keyfile);
 	return NULL;
   }
   ret = PEM_read_PrivateKey(KF,NULL,NULL,(void *)password);
   fclose(KF);
   if (ret==NULL)
   {
-	logger.message("Failed to read key from file %s",keyfile);
-	logger.message("openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
+	logger.message(logger.ERROR,"Failed to read key from file %s",keyfile);
+	logger.message(logger.WARNING,"openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
 	return NULL;
   }
   return ret;
@@ -157,88 +171,18 @@ DH* openssl_load_diffie_hellman_key_from_file(const char* keyfile)
 
   if ((KF = fopen(keyfile,"rb"))==NULL)
   {
-	logger.message("Failed to open DH key file %s",keyfile);
+	logger.message(logger.ERROR,"Failed to open DH key file %s",keyfile);
 	return NULL;
   }
   ret = PEM_read_DHparams(KF,NULL,NULL,NULL);
   fclose(KF);
   if (ret==NULL)
   {
-	logger.message("Failed to read DH key from file %s",keyfile);
-	logger.message("openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
+	logger.message(logger.ERROR,"Failed to read DH key from file %s",keyfile);
+	logger.message(logger.WARNING,"openssl error - %s\n",ERR_error_string(ERR_get_error(),NULL));
 	return NULL;
   }
   return ret;
 }
 
-/*
 
-int main(int argc, char **argv)
-{
-  const char *ca = "KEYS/ca_key_pair.key";
-  const char *ce = "KEYS/cert_key_pair.key";
-  const char *src = "cert.cert";
-  const char *dst = "trans.cert";
-  FILE* SRC;
-  FILE* DST;
-  FILE* CA;
-  FILE* CE;
-  X509 *src_cert;
-  X509 *dst_cert;
-  EVP_PKEY *pubkey;
-  EVP_PKEY *cakey;
-
-  SSL_load_error_strings();
-  OpenSSL_add_all_algorithms();
-
-  SRC =  fopen(src,"rb");
-  src_cert = d2i_X509_fp(SRC,NULL);
-  fclose(SRC);
-
-  if ((CA = fopen(ca,"rb"))==NULL)
-  {
-        fprintf(stderr,"failed to open CA key %s\n",ca);
-        return 0;
-  }
-  if ((cakey = PEM_read_PrivateKey(CA,NULL,NULL,"secret"))==NULL)
-  {
-        fprintf(stderr,"failed to load CA RSA key in %s\n",ca);
-        ERR_print_errors_fp(stderr);
-        return 0;
-  }
-  fclose(CA);
-  if ((CE = fopen(ce,"rb"))==NULL)
-  {
-        fprintf(stderr,"failed to open CERT key %s\n",ce);
-        return 0;
-  }
-  if ((pubkey = PEM_read_PrivateKey(CE,NULL,NULL,"secret"))==NULL)
-  {
-        fprintf(stderr,"failed to load CERT RSA key in %s\n",ce);
-        ERR_print_errors_fp(stderr);
-        return 0;
-  }
-  fclose(CE);
-
-  dst_cert = transform_certificate(src_cert, cakey, pubkey);
-
-  DST = fopen(dst,"wb");
-  if (i2d_X509_fp(DST,dst_cert)<0)
-  {
-        fprintf(stderr,"failed to save cert\n");
-  }
-  else
-  {
-        fprintf(stderr,"success!\n");
-        ERR_print_errors_fp(stderr);
-  }
-  fclose(DST);
-
-  X509_free(dst_cert);
-  X509_free(src_cert);
-  EVP_PKEY_free(cakey);
-  EVP_PKEY_free(pubkey);
-
-  exit(0);
-}
-*/

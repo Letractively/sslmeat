@@ -43,7 +43,7 @@ int tcp_connect(const char *hoststring)
 	if (host[0]>='0' && host[0]<='9') /* assume dotted ip addr */
 	{
 		if (!inet_aton(host,&ip)) {
-			logger.message("inet_aton() failed on '%s'",host);
+			logger.message(logger.ERROR,"inet_aton() failed on '%s'",host);
 			return -1;
 		}
 		addr.sin_addr = ip;
@@ -52,7 +52,7 @@ int tcp_connect(const char *hoststring)
 	{
 		he = gethostbyname(host);
 		if (he==NULL) {
-			logger.message("gethostbyname() failed on '%s'",host);
+			logger.message(logger.ERROR,"gethostbyname() failed on '%s'",host);
 			return -1;
 		}
 		addr.sin_addr   = *(struct in_addr*)he->h_addr_list[0];
@@ -62,11 +62,11 @@ int tcp_connect(const char *hoststring)
 
 	sock = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
 	if (sock<0) {
-		logger.message("socket() failed on destination '%s:%u', %s",host,port,strerror(errno));
+		logger.message(logger.ERROR,"socket() failed on destination '%s:%u', %s",host,port,strerror(errno));
 		return sock;
 	}
 	if (connect(sock,(struct sockaddr *)&addr,sizeof(addr))<0) {
-		logger.message("connect() failed on destination '%s:%u', %s",host,port,strerror(errno));
+		logger.message(logger.ERROR,"connect() failed on destination '%s:%u', %s",host,port,strerror(errno));
 		return -1;
 	}
 	return sock;
@@ -79,7 +79,7 @@ int tcp_listen(unsigned port)
 	
 	sock = socket(AF_INET,SOCK_STREAM,0);
 	if (sock<0) {
-		logger.message("socket() failed for proxy, %s",strerror(errno));
+		logger.message(logger.ERROR,"socket() failed for proxy, %s",strerror(errno));
 		return sock;
 	}
 	memset(&sin,0,sizeof(sin));
@@ -87,7 +87,7 @@ int tcp_listen(unsigned port)
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons(port);
 	if (bind(sock,(struct sockaddr *)&sin, sizeof(sin))<0) {
-		logger.message("bind() failed for proxy, %s",strerror(errno));
+		logger.message(logger.ERROR,"bind() failed for proxy, %s",strerror(errno));
 		return -1;
 	}
 	listen(sock,5);

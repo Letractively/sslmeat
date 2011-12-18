@@ -210,7 +210,7 @@ bool display_packet(HttpPacket *packet)
 		packet->content_write_out(content);
 
 		packet->header_field_add("X-Showp-Content-decoding: failed\r\n");
-		logger.message("Failed to decompress data in packet %08u\n",packet_id);
+		logger.message(logger.ERROR,"Failed to decompress data in packet %08u\n",packet_id);
 	    }
 	    else
 	    {
@@ -330,7 +330,7 @@ int main(int argc, char** argv)
 	    BufferInOutFile *bio;
 	    bio = BufferInOutFile::create(STDIN_FILENO);
 
-	    if (!OPT_VERBOSE) logger.hide(); 
+	    if (!OPT_VERBOSE) logger.set_verbosity(logger.ERROR); 
 
 	    while (!bio->read_end())
 	    {
@@ -343,20 +343,20 @@ int main(int argc, char** argv)
 	    	else
 		    break;
 	    }
-	    logger.show();
+	    logger.set_verbosity(logger.ALL);
 	    delete bio;
     }
     else
     {
 	    db.open(true);
-	    if (!OPT_VERBOSE) logger.hide();
+	    if (!OPT_VERBOSE) logger.set_verbosity(logger.ERROR);
 	    if (db.iterate(expr,display_packet)==false && expr)
 	    {
 		    fprintf(stderr,"Error processing request: check that '%s' is a correct expression.\n",expr);
 		    db.close();
 		    exit(-2);
 	    }
-	    logger.show();
+	    logger.set_verbosity(logger.ALL);
 	    db.close();
     }
 }

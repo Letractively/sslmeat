@@ -147,7 +147,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 	sock = tcp_connect(_target_host.c_str());
 	if (sock<0)
 	{
-	    logger.message("failed to establish connection to %s, sending error 504.",_target_host.c_str());	
+	    logger.message(logger.WARNING,"failed to establish connection to %s, sending error 504.",_target_host.c_str());	
 
 	    packet = HttpPacket::create();
 	    packet->headline_set("HTTP/1.1 504 Gateway timeout\r\n");
@@ -158,7 +158,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 	}
 	else
 	{	
-	    logger.message("Connected to %s",_target_host.c_str());
+	    logger.message(logger.DEBUG,"Connected to %s",_target_host.c_str());
 	    tmp = BufferInOutSSL::create(sock,false,local_client_key);
 	    _server = tmp;
 	    if (!_server)
@@ -166,7 +166,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 		change_state(PROXY_EXPECT_ERROR);
 		goto process_tunnel_setup_end; /* TODO: release alloc objects */
 	    }
-	    logger.message("established SSL client connection to %s",_target_host.c_str());
+	    logger.message(logger.DEBUG,"established SSL client connection to %s",_target_host.c_str());
 
 	    packet = HttpPacket::create();
 	    packet->headline_set("HTTP/1.1 200 Connection established\r\n");
@@ -187,7 +187,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 		change_state(PROXY_EXPECT_ERROR);
 		goto process_tunnel_setup_end;
 	    }	
-	    logger.message("established connection to secondary proxy %s",_secondary_proxy_name.c_str());
+	    logger.message(logger.DEBUG,"established connection to secondary proxy %s",_secondary_proxy_name.c_str());
 	    _server = BufferInOutFile::create(sock);		    
 	}
 	else
@@ -200,7 +200,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 	packet = HttpPacket::create();
 	packet->packet_read_in(_server);
 
-	logger.message("Response to CONNECT: %s",packet->headline_get().c_str());
+	logger.message(logger.DEBUG,"Response to CONNECT: %s",packet->headline_get().c_str());
 
 	packet->log();
 
@@ -222,7 +222,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 	    /* TODO: release alloc objects */
 	}
 
-	logger.message("established SSL client connection to %s trough secondary proxy %s",_target_host.c_str(),_secondary_proxy_name.c_str());
+	logger.message(logger.DEBUG,"established SSL client connection to %s trough secondary proxy %s",_target_host.c_str(),_secondary_proxy_name.c_str());
     }
 
     sock = _client->get_fd();
@@ -232,7 +232,7 @@ HttpPacket* HttpProxy::process_tunnel_setup()
     if (distant_server_cert==NULL)
     {
 	change_state(PROXY_EXPECT_ERROR);
-	logger.message("Failed to get peer certificate");
+	logger.message(logger.ERROR,"Failed to get peer certificate");
 	goto process_tunnel_setup_end;
     }
     local_server_cert = openssl_transform_certificate(distant_server_cert,local_ca_key,local_server_key);
@@ -253,13 +253,19 @@ HttpPacket* HttpProxy::process_tunnel_setup()
 	goto process_tunnel_setup_end;
 	/* TODO: cleanup */
     }
-    logger.message("established SSL server connection from %s",description.c_str());
 
     packet->hostname_set("[proxy]");
     packet->source_set_ip(socket_get_local_ip(_client->get_fd()));
     packet->source_set_port(socket_get_local_port(_client->get_fd()));
     packet->destination_set_ip(socket_get_peer_ip(_client->get_fd()));
     packet->destination_set_port(socket_get_peer_port(_client->get_fd()));
+    
+    logger.message(logger.DEBUG,"established SSL server connection from %s:%u to %s:%u",
+		    packet->source_get_ip(),
+		    packet->source_get_port(),
+		    packet->destination_get_ip(),
+		    packet->destination_get_port()
+		    );
 
     change_state(PROXY_EXPECT_SSL_REQUEST);
 
@@ -293,7 +299,7 @@ HttpPacket* HttpProxy::process_ssl_request()
 	goto process_ssl_request_fail;
     }
  
-    logger.message("Processing ssl request %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Processing ssl request %s",packet->headline_get().c_str());
 
     packet->hostname_set(_target_host.c_str());
     
@@ -338,7 +344,7 @@ HttpPacket* HttpProxy::process_request()
 	goto process_request_fail;
     }
 
-    logger.message("Processing request %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Processing request %s",packet->headline_get().c_str());
 
     http_method    = packet->headline_get_part(0);
     http_ressource = packet->headline_get_part(1);
@@ -363,7 +369,7 @@ HttpPacket* HttpProxy::process_request()
      
     parse_url(http_ressource,http_host,http_path);
     packet->headline_set(http_method,http_path,http_proto);
-    logger.message("Translated request to %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Translated request to %s",packet->headline_get().c_str());
 
     packet->header_field_erase("Proxy-Connection");
     packet->header_field_set("Connection","close");
@@ -376,7 +382,7 @@ HttpPacket* HttpProxy::process_request()
 
 	    if (!packet->header_field_get("Host",host)) 
 	    {
-		logger.message("Missing host header in message");
+		logger.message(logger.ERROR,"Missing host header in message");
 		change_state(PROXY_EXPECT_ERROR);
 		goto process_request_fail;
 	    }
@@ -387,12 +393,12 @@ HttpPacket* HttpProxy::process_request()
 	    
 	    if (sock<0) 
 	    {
-		logger.message("Failed to establish connection to %s",host.c_str());
+		logger.message(logger.ERROR,"Failed to establish connection to %s",host.c_str());
 		change_state(PROXY_EXPECT_RESPONSE_GATEWAY_TIMEOUT);
 		goto process_request_fail;
 	    }
 	    
-	    logger.message("established connection to %s",host.c_str());
+	    logger.message(logger.DEBUG,"established connection to %s",host.c_str());
 	    _server = BufferInOutFile::create(sock);
 	}
 	else
@@ -402,7 +408,7 @@ HttpPacket* HttpProxy::process_request()
 
 	    if (!packet->header_field_get("Host",host)) 
 	    {
-		logger.message("Missing host header in message");
+		logger.message(logger.ERROR,"Missing host header in message");
 		change_state(PROXY_EXPECT_ERROR);
 		goto process_request_fail;
 	    }
@@ -415,7 +421,7 @@ HttpPacket* HttpProxy::process_request()
 		change_state(PROXY_EXPECT_ERROR);
 		goto process_request_fail;
 	    }
-	    logger.message("Established connection to secondary proxy %s",_secondary_proxy_name.c_str());
+	    logger.message(logger.DEBUG,"Established connection to secondary proxy %s",_secondary_proxy_name.c_str());
 	    _server = BufferInOutFile::create(sock);
 	}
     }	
@@ -454,12 +460,12 @@ HttpPacket *HttpProxy::process_ssl_response()
 
     if (packet->headline_get().find("HTTP")!=0)
     {	
-	logger.message("Malformed SSL response header: %s",packet->headline_get().c_str());
+	logger.message(logger.ERROR,"Malformed SSL response header: %s",packet->headline_get().c_str());
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_ssl_fail;
     }
     
-    logger.message("Processing SSL response %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Processing SSL response %s",packet->headline_get().c_str());
 
     packet->hostname_set(_last_request->hostname_get());
 
@@ -467,14 +473,14 @@ HttpPacket *HttpProxy::process_ssl_response()
 
     if (!packet->packet_write_out(_client))
     {
-	logger.message("Failed to write SSL response packet to client");
+	logger.message(logger.ERROR,"Failed to write SSL response packet to client");
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_ssl_fail; 
     }
 
     if (!_client->write_flush())
     {
-	logger.message("Failed to send SSL response packet to client");
+	logger.message(logger.ERROR,"Failed to send SSL response packet to client");
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_ssl_fail; 
     }
@@ -512,12 +518,12 @@ HttpPacket* HttpProxy::process_response()
 
     if (packet->headline_get().find("HTTP")!=0)
     {	
-	logger.message("Malformed response header: %s",packet->headline_get().c_str());
+	logger.message(logger.ERROR,"Malformed response header: %s",packet->headline_get().c_str());
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_fail;
     }
 
-    logger.message("Processing response %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Processing response %s",packet->headline_get().c_str());
 
     packet->header_field_set("Connection","close");
   
@@ -525,11 +531,11 @@ HttpPacket* HttpProxy::process_response()
 
     if (!packet->packet_write_out(_client) || !_client->write_flush())
     {
-	logger.message("Failed to send response packet to client");
+	logger.message(logger.ERROR,"Failed to send response packet to client");
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_fail;
     }
-    logger.message("Response sent back to client");
+    logger.message(logger.DEBUG,"Response sent back to client");
 
     change_state(PROXY_EXPECT_CONNECTION_CLOSE);
     
@@ -563,18 +569,18 @@ HttpPacket* HttpProxy::process_response_gateway_timeout()
     packet->packet_write_out(_client);
     _client->write_flush();
 
-    logger.message("Sending response %s",packet->headline_get().c_str());
+    logger.message(logger.DEBUG,"Sending response %s",packet->headline_get().c_str());
 
     
     packet->log();	
 
     if (!packet->packet_write_out(_client) || !_client->write_flush())
     {
-	logger.message("Failed to send response packet to client");
+	logger.message(logger.ERROR,"Failed to send response packet to client");
 	change_state(PROXY_EXPECT_ERROR);
 	goto process_response_gateway_timeout_fail;
     }
-    logger.message("Response sent back to client");
+    logger.message(logger.DEBUG,"Response sent back to client");
 
     change_state(PROXY_EXPECT_CONNECTION_CLOSE);
   
@@ -607,9 +613,9 @@ bool HttpProxy::run()
 	return false;
 
     if (!_secondary_proxy)
-	logger.message("Running proxy with direct connection");
+	logger.message(logger.DEBUG,"Running proxy with direct connection");
     else
-	logger.message("Running proxy with secondary proxy %s", _secondary_proxy_name.c_str());
+	logger.message(logger.DEBUG,"Running proxy with secondary proxy %s", _secondary_proxy_name.c_str());
 
 
     while (running) 
@@ -652,13 +658,13 @@ bool HttpProxy::run()
     }
 
     if (_proxy_state==PROXY_EXPECT_CONNECTION_CLOSE)
-	logger.message("Connection ended through 'Connection: close' header");
+	logger.message(logger.DEBUG,"Connection ended through 'Connection: close' header");
     else if (_client->read_end())
-	logger.message("Connection ended by client");
+	logger.message(logger.DEBUG,"Connection ended by client");
     else if (_server->read_end())
-	logger.message("Connection ended by server");
+	logger.message(logger.DEBUG,"Connection ended by server");
     else
-	logger.message("Connection ended because of error");
+	logger.message(logger.DEBUG,"Connection ended because of error");
 	    
 //    return _client->eof() || _client->eof() || _connection_close;
     return true;
@@ -698,7 +704,7 @@ void reaper(int sig)
 
 void interupter(int sig)
 {
-    logger.message("Caught SIGINT... stopping");
+    logger.message(logger.WARNING,"Caught SIGINT... stopping");
     fclose(stderr);
     fclose(stdout);
     exit(0);
@@ -706,7 +712,7 @@ void interupter(int sig)
 
 void sigsegv_handler(int sig)
 {
-    logger.message("ALERT! Caught SIGSEGV... stopping");
+    logger.message(logger.ERROR,"ALERT! Caught SIGSEGV... stopping");
     fclose(stderr);
     fclose(stdout);
     exit(0);
@@ -723,7 +729,7 @@ int main(int argc, char **argv)
     int o_port = 9999;
     char *o_extra_proxy = NULL;
 
-    while ((opt=getopt(argc,argv,"hp:x:")) != -1)
+    while ((opt=getopt(argc,argv,"hp:x:VS")) != -1)
     {
 	switch (opt) {
 		case 'p':
@@ -731,6 +737,13 @@ int main(int argc, char **argv)
 		    break;
 		case 'x':
 		    o_extra_proxy = optarg;
+		    break;
+		case 'V':
+		    fprintf(stderr, VERSION_ID "\n");
+		    exit(0);
+		    break;
+		case 'S':
+		    openssl_save_cert = 1;
 		    break;
 		case 'h':
 		default:
@@ -748,9 +761,11 @@ int main(int argc, char **argv)
 
     sock = tcp_listen(o_port);
     if (sock<0) exit(0);
-    logger.message("Started, listening on port 9999.");
+    logger.message(logger.DEBUG,"Started proxy version %s, listening on port 9999.",VERSION_ID);
+    if (openssl_save_cert)
+	    logger.message(logger.DEBUG,"Certificates will be saved in current directory (option -S)\n");
     if (o_extra_proxy)
-	logger.message("Requests will be forwarded to secondary proxy %s",o_extra_proxy);
+	logger.message(logger.DEBUG,"Requests will be forwarded to secondary proxy %s",o_extra_proxy);
 
     signal(SIGINT,interupter);
     signal(SIGCHLD,reaper);
@@ -772,15 +787,15 @@ int main(int argc, char **argv)
 		    proxy->run();
 		    delete proxy;
 		    close(s);
-		    logger.message("Exiting.");
+		    logger.message(logger.DEBUG,"Exiting.");
 		    exit(0);
 		default:
 		    PROCESS_COUNT++;
-		    logger.message("Spawned child process (pid=%i, process_count=%i)\n",
+		    logger.message(logger.DEBUG,"Spawned child process (pid=%i, process_count=%i)\n",
 				   fval,PROCESS_COUNT);
 		    break;
 		case -1:
-		    logger.message("fork() failed, leaving the ship");
+		    logger.message(logger.ERROR,"fork() failed, leaving the ship");
 		    exit(1);
 	    }
 	}

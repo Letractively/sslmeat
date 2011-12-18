@@ -1,13 +1,64 @@
 SSLMEAT INSTALL
+=========================================================================
+
+This file contains 2 sections:
+1) Instructions to complie SSLMEAT.
+2) Instructions on how to install the root certificates on some devices.
+
+=========================================================================
+1) COMPILE SSLMEAT
+=========================================================================
 
 sslmeat is written in C++ (g++) and encompasses 2 executables:
 1) 'proxy', the http/ssl man-in-the-middle proxy.
 2) 'showp', a tool to read the contents of packets saved by 'proxy'
 
-To compile sslmeat, you'll need the following dev. packages:
+To compile sslmeat, you'll need the following development packages:
 * zlib
 * sqlite3
 * openssl
 
 Compile instructions: just type 'make' ! 
+
+=========================================================================
+2) INSTALL CERTIFICATES
+=========================================================================
+
+2.1) On an ordinary browser
+     ----------------------
+
+Add the file KEYS/ca_cert.pem to the keystore of your browser.
+
+On MS IE8, go to "Internet options", click on the "Content" tab, then on 
+"Certificates". Click on the "Import" button and add the certificate as
+a "Trusted Root Certification Authority".
+
+An equivalent approach can be used on Firefox, Chrome or Safari. 
+
+Note: if your browser prefers an CRT file instead of a PEM file, you
+can easily make the conversion with openssl with the folowing command:
+$ openssl x509 -inform PEM -outform DER -in ca_cert.pem -out ca_cert.crt
+
+2.2) On an iPhone
+     ------------
+
+Create a webpage containing the file KEYS/ca_cert.pem or send yourself an 
+email containing that file. Open the file on the iPhone, and follow the 
+instructions to add that certificate as a trusted root certificate.
+
+2.3) On an Android
+     -------------
+
+Depending on the android platform you have, different approaches may exist. 
+
+On a Galaxy Tab 10.1, you will need to root the device and use a terminal 
+emulator to copy the file /system/etc/security/cacerts.bks to a sdcard. 
+Then you should modify that file on a PC with a keystore editor such as 
+"Portecle", adding KEYS/ca_cert.pem to the keystore. Copy back the modified 
+keystore to the android device and reboot. 
+
+Tip: if the "cp" command does not exist, use "cat source > destination".
+
+Ressource: http://sourceforge.net/projects/portecle/ 
+
 
