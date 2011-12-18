@@ -240,11 +240,11 @@ bool HttpPacket::header_read_in(BufferIn *in)
     {
 	if (header_field_add(line)==false)
 	{
-	    logger.message("Http header was loaded");
+	    logger.message(logger.DEBUG,"Http header was loaded");
 	    return true; /* we got to the final '\r\n' */
 	}
     }
-    logger.message("Failed to load http header");
+    logger.message(logger.WARNING,"Failed to load http header");
     return false;
 }
 
@@ -279,13 +279,13 @@ bool HttpPacket::content_read_in(BufferIn *in)
 	    rlen = content_length<CONTENT_BLOCK_LENGTH?content_length:CONTENT_BLOCK_LENGTH;
 	    if (!in->read_block(rlen,buf))
 	    {
-		logger.message("Failed to read content from source (with %u bytes remaining)",content_length);
+		logger.message(logger.WARNING,"Failed to read content from source (with %u bytes remaining)",content_length);
 		return false;
 	    }
 	    content_add(rlen,buf);
 	    content_length-=rlen;
 	}
-	logger.message("Read a total of %u bytes of content based on the 'Content-length' header",content_length_total);
+	logger.message(logger.DEBUG,"Read a total of %u bytes of content based on the 'Content-length' header",content_length_total);
 	return true;
     }
     else if (header_field_value_match("Transfer-encoding","chunked"))
@@ -304,7 +304,7 @@ bool HttpPacket::content_read_in(BufferIn *in)
 		rlen = content_length<CONTENT_BLOCK_LENGTH?content_length:CONTENT_BLOCK_LENGTH;
 		if (!in->read_block(rlen,buf))
 		{
-		    logger.message("Failed to read content from source (with %u bytes remaining in chunk)",content_length);
+		    logger.message(logger.WARNING,"Failed to read content from source (with %u bytes remaining in chunk)",content_length);
 		    return false;
 		}
 		content_add(rlen,buf);
@@ -316,7 +316,7 @@ bool HttpPacket::content_read_in(BufferIn *in)
 	    
 	    if (line!="\r\n" && line!="\n")
 	    {
-		logger.message("Block does not end with CRLF in chunked encoding, aborting content loading.");
+		logger.message(logger.WARNING,"Block does not end with CRLF in chunked encoding, aborting content loading.");
 		break;
 	    }
 
@@ -325,28 +325,28 @@ bool HttpPacket::content_read_in(BufferIn *in)
 	header_field_erase("Transfer-encoding");
 	header_field_set("Content-length",content_length_total);
 
-	logger.message("Read a total of %u bytes of content in chucked encoding",content_length_total);
+	logger.message(logger.DEBUG,"Read a total of %u bytes of content in chucked encoding",content_length_total);
 	return true;
     }
     else if (header_field_exists("Content-type") && _headline_parts[1]=="200")
     {
 	content_length_total = 0;
 
-	logger.message("No content-length or chunked encoding, but content-type is defined, processing response.");
+	logger.message(logger.DEBUG,"No content-length or chunked encoding, but content-type is defined, processing response.");
 	do {
 	    rlen = 8192;
-	    logger.message("Read attempt");
+	    logger.message(logger.DEBUG,"Read attempt");
 	    if (!in->read_block(rlen,buf)) break;
-	    logger.message("Got %i bytes",rlen);
+	    logger.message(logger.DEBUG,"Got %i bytes",rlen);
 	    content_add(rlen,buf);
 	    content_length_total += rlen;
 	}
 	while (rlen==8192);
-	logger.message("Read a total of %u bytes of content until end of file",content_length_total);
+	logger.message(logger.DEBUG,"Read a total of %u bytes of content until end of file",content_length_total);
 	return true;
     }
     
-    logger.message("No content detected");
+    logger.message(logger.DEBUG,"No content detected");
     return true;
 }
 
@@ -408,7 +408,7 @@ void HttpPacket::log() const
   char buf[80];
   std::vector<std::string>::const_iterator iter;
 
-  logger.message("http: - %s",_headline.c_str());
+  logger.message(logger.DEBUG,"http: - %s",_headline.c_str());
   for (iter=_headers.begin();iter!=_headers.end();iter++)
   {
       if ((*iter).size()<80)
@@ -421,9 +421,9 @@ void HttpPacket::log() const
 	memcpy(buf,(*iter).data(),74);
 	memcpy(buf+74,"(...)",6);
       }
-      logger.message("http: + %s",buf);
+      logger.message(logger.DEBUG,"http: + %s",buf);
   }
-  logger.message("http: ** %i bytes of content follow **",_content_size);  
+  logger.message(logger.DEBUG,"http: ** %i bytes of content follow **",_content_size);  
 }
 
 HttpPacket::~HttpPacket()
@@ -490,7 +490,7 @@ bool HttpPacketDB::open(bool readonly)
 	    sqlite3_busy_timeout(_dbhandle,1000);
 	    return true;
 	}
-	logger.message("Error opening %s read-only.",_db_name.c_str());
+	logger.message(logger.ERROR,"Error opening %s read-only.",_db_name.c_str());
 	return false;
     }
     
@@ -502,19 +502,19 @@ bool HttpPacketDB::open(bool readonly)
 
     if (sqlite3_open_v2(_db_name.c_str(),&_dbhandle,SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL)!=SQLITE_OK)
     {
-	logger.message("Error creating %s.",_db_name.c_str());
+	logger.message(logger.ERROR,"Error creating %s.",_db_name.c_str());
 	close();
 	return false;
     }
     sqlite3_busy_timeout(_dbhandle,1000);
     if (sqlite3_exec(_dbhandle,stmt,NULL,NULL,&errmsg)!=SQLITE_OK)
     {
-	logger.message("Error creating table in %s: %s",_db_name.c_str(),errmsg);
+	logger.message(logger.ERROR,"Error creating table in %s: %s",_db_name.c_str(),errmsg);
 	sqlite3_free(errmsg);
 	close();
 	return false;
     }
-    logger.message("Created SQL database %s",_db_name.c_str());
+    logger.message(logger.DEBUG,"Created SQL database %s",_db_name.c_str());
     return true;
 }
 
@@ -561,7 +561,7 @@ bool HttpPacketDB::iterate(char *expression, bool(*iter_cb)(HttpPacket *))
 
     if (sqlite3_prepare_v2(_dbhandle,stmt,-1,&compiled_stmt,NULL)!=SQLITE_OK)
     {
-	logger.message("Error creating SQL statement in %s: %s",
+	logger.message(logger.ERROR,"Error creating SQL statement in %s: %s",
 		       _db_name.c_str(),
 		       sqlite3_errmsg(_dbhandle));
 	sqlite3_free(stmt);
@@ -634,7 +634,7 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 			       "SELECT ifnull(((MAX(packetid)/10)+1)*10,0) FROM packets;",
 			       -1,&compiled_stmt,NULL)!=SQLITE_OK)
 	{
-	    logger.message("Error creating SQL statement in %s, to create new packetid: %s",
+	    logger.message(logger.ERROR,"Error creating SQL statement in %s, to create new packetid: %s",
 			   _db_name.c_str(), sqlite3_errmsg(_dbhandle));
 	    return false;
 	}
@@ -644,22 +644,22 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 		err_code = sqlite3_step(compiled_stmt);
 		if (err_code == SQLITE_BUSY)
 		{
-			logger.message("Could not store packet (attempt %i of 5): database is locked by another process",i+1);
+			logger.message(logger.ERROR,"Could not store packet (attempt %i of 5): database is locked by another process",i+1);
 		}
 		else if (err_code == SQLITE_ROW)
 		{
 			packetid = sqlite3_column_int(compiled_stmt,0);
-			logger.message("Created packet storage entry, with packetid=%08x",packetid);
+			logger.message(logger.DEBUG,"Created packet storage entry, with packetid=%08x",packetid);
 			break;
 		} 
 		else if (err_code == SQLITE_DONE)
 		{
-			logger.message("Error executing SQL statement in %s to create new packetid: empty result");
+			logger.message(logger.ERROR,"Error executing SQL statement in %s to create new packetid: empty result");
 			break;
 		}
 		else
 		{
-	    		logger.message("Error executing SQL statement in %s to create new packetid: %s",
+	    		logger.message(logger.ERROR,"Error executing SQL statement in %s to create new packetid: %s",
 			   		_db_name.c_str(),sqlite3_errmsg(_dbhandle));
 			break;
 		}
@@ -686,7 +686,7 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 
     if (sqlite3_prepare_v2(_dbhandle,stmt,-1,&compiled_stmt,NULL)!=SQLITE_OK)
     {
-	logger.message("Error creating SQL statement in %s, for packet %08x: %s",
+	logger.message(logger.ERROR,"Error creating SQL statement in %s, for packet %08x: %s",
 		       _db_name.c_str(),packet->id_get(),
 		       sqlite3_errmsg(_dbhandle));
 	sqlite3_free(stmt);
@@ -699,7 +699,7 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
    
     if (sqlite3_bind_blob(compiled_stmt,1,data->get_data(),data->get_size(),SQLITE_TRANSIENT)!=SQLITE_OK)
     {
-	logger.message("Error adding body packet data in SQL statement in %s, for packet %08x",
+	logger.message(logger.ERROR,"Error adding body packet data in SQL statement in %s, for packet %08x",
 		       _db_name.c_str(),packet->id_get());
 	sqlite3_finalize(compiled_stmt);
 	delete data;
@@ -711,7 +711,7 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 	    err_code = sqlite3_step(compiled_stmt);
 	    if (err_code == SQLITE_OK || err_code == SQLITE_DONE) 
 	    {
-		    logger.message("Saved packet %08x in %s",
+		    logger.message(logger.DEBUG,"Saved packet %08x in %s",
 				    packet->id_get(),
 				    _db_name.c_str());
 		    break;
@@ -720,11 +720,11 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 	    {
 		    if (i<4)
 		    {
-			    logger.message("Could not store packet (attempt %i of 5): database is locked by another process",i+1);
+			    logger.message(logger.WARNING,"Could not store packet (attempt %i of 5): database is locked by another process",i+1);
 		    }
 		    else
 		    {
-			    logger.message("Could not store packet %08x in %s after 5 attempts, aborting: %s\n",
+			    logger.message(logger.ERROR,"Could not store packet %08x in %s after 5 attempts, aborting: %s\n",
 					    packet->id_get(),
 					    _db_name.c_str(),
 					    sqlite3_errmsg(_dbhandle));
@@ -735,7 +735,7 @@ bool HttpPacketDB::store(HttpPacket* packet, int packetid)
 	    }
 	    else
 	    {
-		    logger.message("Error storing packet %08x in %s: %s",
+		    logger.message(logger.ERROR,"Error storing packet %08x in %s: %s",
 				    packet->id_get(),
 				    _db_name.c_str(),
 				    sqlite3_errmsg(_dbhandle));

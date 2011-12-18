@@ -81,16 +81,16 @@ int BufferInflateMemory::zlib_inflate()
 	
 	switch (ret) {
 	    case Z_NEED_DICT:
-		logger.message("Failed zlib: Z_NEED_DICT");
+		logger.message(logger.ERROR,"Failed zlib: Z_NEED_DICT");
 		return ret;
 	    case Z_DATA_ERROR:
-		logger.message("Failed zlib: Z_DATA_ERROR, %s\n",_strm.msg);
+		logger.message(logger.ERROR,"Failed zlib: Z_DATA_ERROR, %s\n",_strm.msg);
 		return ret;
 	    case Z_MEM_ERROR:
-		logger.message("Failed zlib: Z_MEM_ERROR\n");
+		logger.message(logger.ERROR,"Failed zlib: Z_MEM_ERROR\n");
 		return ret;
 	    case Z_STREAM_ERROR:
-		logger.message("Failed zlib: Z_STREAM_ERROR\n");
+		logger.message(logger.ERROR,"Failed zlib: Z_STREAM_ERROR\n");
 		return ret;
 	}
 	
