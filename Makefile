@@ -24,4 +24,4 @@ dist-tgz:
 		@echo "created sslmeat-$(VERSION_ID).tgz"
 
 clean:
-	rm -f $(OBJECTS) *~ proxy showp *.stackdump
+	rm -f $(OBJECTS) *~ proxy showp *.stackdump *.exe
