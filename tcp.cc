@@ -11,6 +11,12 @@
 #include <cstdlib>
 #include "log_facility.h"
 
+int is_ipv4_address(const char *addr)
+{
+	while ((*addr>='0' && *addr<='9') || *addr=='.') addr++;
+	return (*addr==0);
+}
+
 int tcp_connect(const char *hoststring)
 {
 	int sock;
@@ -40,7 +46,7 @@ int tcp_connect(const char *hoststring)
 	}
 
 	memset(&addr,0,sizeof(addr));
-	if (host[0]>='0' && host[0]<='9') /* assume dotted ip addr */
+	if (is_ipv4_address(host)) /* assume dotted ip addr */
 	{
 		if (!inet_aton(host,&ip)) {
 			logger.message(logger.ERROR,"inet_aton() failed on '%s'",host);
