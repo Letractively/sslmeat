@@ -12,6 +12,7 @@
 
 class HttpProxy {
 	public:
+		static bool option_describe;
 		enum proxy_state {
 		        PROXY_EXPECT_INIT,
 			PROXY_EXPECT_REQUEST,
@@ -62,6 +63,9 @@ class HttpProxy {
 
 		DISALLOW_COPY_AND_ASSIGN(HttpProxy);
 };
+
+bool HttpProxy::option_describe = false;
+
 
 HttpProxy *HttpProxy::create(int socket)
 {
@@ -292,6 +296,7 @@ HttpPacket* HttpProxy::process_ssl_request()
     HttpPacket *packet = HttpPacket::create();
     std::string line;
     std::string request;
+    std::string http_ref;
 
     if (!packet->packet_read_in(_client))
     {
@@ -304,6 +309,24 @@ HttpPacket* HttpProxy::process_ssl_request()
     packet->hostname_set(_target_host.c_str());
     
     packet->log();	
+
+    if (option_describe)
+    {
+	    if (packet->header_field_get("Referer",http_ref))
+	    {
+		    if (packet->header_field_exists("Cookie"))
+		    	    printf("request --referer '%s' --host '%s' --cookie true\n",http_ref.c_str(),_target_host.c_str());
+	    	    else
+			    printf("request --referer '%s' --host '%s' --cookie false\n",http_ref.c_str(),_target_host.c_str());
+	    }
+	    else
+	    {
+		    if (packet->header_field_exists("Cookie"))
+			    printf("request --host '%s' --cookie true\n",_target_host.c_str());
+		    else
+			    printf("request --host '%s' --cookie false\n",_target_host.c_str());	
+	    }
+    }
 
     packet->packet_write_out(_server);
     _server->write_flush();
@@ -326,6 +349,21 @@ process_ssl_request_fail:
     return NULL;
 }
 
+/*
+const char *domain_name(const char *s)
+{
+	const char *p = s+strlen(s)-1;
+	unsigned points = 0;
+
+	while (p>=s && *p!='/')
+	{
+		if (*p=='.') points++;
+		if (points==2) return p+1;
+		p--;
+	}
+	return p+1;
+}*/
+
 //
 // PROXY_EXPECT_REQUEST
 //
@@ -337,6 +375,11 @@ HttpPacket* HttpProxy::process_request()
     std::string http_proto;
     std::string http_host;
     std::string http_path;
+    std::string http_ref;
+    std::string http_ref_proto;
+    std::string http_ref_host;
+    std::string http_ref_path;
+    std::string host;
 
     if (!packet->packet_read_in(_client))
     {
@@ -374,18 +417,19 @@ HttpPacket* HttpProxy::process_request()
     packet->header_field_erase("Proxy-Connection");
     packet->header_field_set("Connection","close");
 
+
+    if (!packet->header_field_get("Host",host)) 
+    {
+	    logger.message(logger.ERROR,"Missing 'Host:' header in message");
+	    change_state(PROXY_EXPECT_ERROR);
+	    goto process_request_fail;
+    }
+
     if (_server==NULL) {
 	if (!_secondary_proxy)
 	{
 	    int sock;
-	    std::string host;
 
-	    if (!packet->header_field_get("Host",host)) 
-	    {
-		logger.message(logger.ERROR,"Missing host header in message");
-		change_state(PROXY_EXPECT_ERROR);
-		goto process_request_fail;
-	    }
 	    _target_host = host;
     	    packet->hostname_set(host.c_str());
 
@@ -404,14 +448,7 @@ HttpPacket* HttpProxy::process_request()
 	else
 	{
 	    int sock;
-	    std::string host;
-
-	    if (!packet->header_field_get("Host",host)) 
-	    {
-		logger.message(logger.ERROR,"Missing host header in message");
-		change_state(PROXY_EXPECT_ERROR);
-		goto process_request_fail;
-	    }
+	    
 	    _target_host = host;
     	    packet->hostname_set(host.c_str());
 
@@ -425,6 +462,24 @@ HttpPacket* HttpProxy::process_request()
 	    _server = BufferInOutFile::create(sock);
 	}
     }	
+
+    if (option_describe)
+    {
+	    if (packet->header_field_get("Referer",http_ref))
+	    {
+		    if (packet->header_field_exists("Cookie"))
+		    	    printf("request --referer '%s' --host '%s' --cookie true\n",http_ref.c_str(),host.c_str());
+	    	    else
+			    printf("request --referer '%s' --host '%s' --cookie false\n",http_ref.c_str(),host.c_str());
+	    }
+	    else
+	    {
+		    if (packet->header_field_exists("Cookie"))
+			    printf("request --host '%s' --cookie true\n",host.c_str());
+		    else
+			    printf("request --host '%s' --cookie false\n",host.c_str());	
+	    }
+    }
 
     packet->packet_write_out(_server);
     _server->write_flush();
@@ -729,7 +784,7 @@ int main(int argc, char **argv)
     int o_port = 9999;
     char *o_extra_proxy = NULL;
 
-    while ((opt=getopt(argc,argv,"hp:x:VS")) != -1)
+    while ((opt=getopt(argc,argv,"hp:x:VSd")) != -1)
     {
 	switch (opt) {
 		case 'p':
@@ -745,11 +800,17 @@ int main(int argc, char **argv)
 		case 'S':
 		    openssl_save_cert = 1;
 		    break;
+		case 'd':
+		    HttpProxy::option_describe = true;
+		    break;
 		case 'h':
 		default:
 		    fprintf(stderr,"This tool is (c) Alain Pannetrat, licenced under the GPL version 3.\n\n");
-		    fprintf(stderr,"usage: proxy [-p port] [-x extra_proxy_host:extra_proxy_port]\n");
-		    fprintf(stderr,"       default port is 9999.\n\n");
+		    fprintf(stderr,"usage: proxy [-p port] [-x extra_proxy_host:extra_proxy_port] [-V] [-S] [-d]\n");
+		    fprintf(stderr,"       -V: print version\n");
+		    fprintf(stderr,"       -S: save collected ssl certificates\n");
+		    fprintf(stderr,"       -d: describe packet summary to stdout\n");
+		    fprintf(stderr," default port is 9999.\n\n");
 		    exit(EXIT_FAILURE);
 	}
     }
