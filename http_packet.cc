@@ -336,10 +336,13 @@ bool HttpPacket::content_read_in(BufferIn *in)
 	do {
 	    rlen = 8192;
 	    logger.message(logger.DEBUG,"Read attempt");
-	    if (!in->read_block(rlen,buf)) break;
+	    in->read_block(rlen,buf);
 	    logger.message(logger.DEBUG,"Got %i bytes",rlen);
-	    content_add(rlen,buf);
-	    content_length_total += rlen;
+	    if (rlen>0)
+	    {
+		    content_add(rlen,buf);
+		    content_length_total += rlen;
+	    }
 	}
 	while (rlen==8192);
 	logger.message(logger.DEBUG,"Read a total of %u bytes of content until end of file",content_length_total);
